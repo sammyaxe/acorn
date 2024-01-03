@@ -200,6 +200,7 @@ class Bootloader
     {
         $kernel = $app->make(\Illuminate\Contracts\Http\Kernel::class);
         $request = \Illuminate\Http\Request::capture();
+        $time = time();
 
         $app->instance('request', $request);
         Facade::clearResolvedInstance('request');
@@ -221,19 +222,34 @@ class Bootloader
             3
         );
 
-        add_action('parse_request', function () use ($kernel, $request) {
-            /** @var \Illuminate\Http\Response */
+        // Create a default route for wordpress routes to use
+        $app->make('router')
+            ->any('{any?}', fn () => response()->json(['message' => "wordpress_request_$time" ]))
+            ->where('any', '.*');
+
+        add_action('parse_request', function () use ($time, $kernel, $request) {
+            /** @var \Illuminate\Http\Response|\Symfony\Component\HttpFoundation\BinaryFileResponse */
             $response = $kernel->handle($request);
 
-            if (! $response->isServerError() && $response->status() >= 400) {
+            if (in_array(true, [
+                $response instanceof \Illuminate\Http\Response
+                && ! $response->isServerError() && $response->status() >= 400,
+                $response instanceof \Symfony\Component\HttpFoundation\BinaryFileResponse
+                && ! $response->isServerError() && $response->getStatusCode() >= 400,
+            ])) {
                 return;
             }
 
-            $body = $response->send();
+            if (in_array(false, [
+                $response instanceof \Illuminate\Http\JsonResponse,
+                is_string($response->getContent()),
+                $data = json_decode($response->getContent()),
+                isset($data->message) && $data->message == "wordpress_request_$time",
+            ])) {
+                $body = $response->send();
 
-            $kernel->terminate($request, $body);
-
-            exit;
+                $kernel->terminate($request, $body);
+            }
         });
     }
 
