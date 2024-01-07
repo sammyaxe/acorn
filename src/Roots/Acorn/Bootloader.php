@@ -199,13 +199,21 @@ class Bootloader
     protected function bootHttp(ApplicationContract $app)
     {
         $kernel = $app->make(\Illuminate\Contracts\Http\Kernel::class);
-        $request = \Illuminate\Http\Request::capture();
+
         $time = time();
+
+        $request = \Illuminate\Http\Request::capture();
 
         $app->instance('request', $request);
         Facade::clearResolvedInstance('request');
 
         $kernel->bootstrap($request);
+
+        // Create a default route for wordpress routes to use
+        $app->make('router')
+            ->middleware('web')
+            ->any('{any?}', fn () => response()->json(['message' => "wordpress_request_$time" ]))
+            ->where('any', '.*');
 
         try {
             if (! $app->make('router')->getRoutes()->match($request)) {
@@ -221,11 +229,6 @@ class Bootloader
             100,
             3
         );
-
-        // Create a default route for wordpress routes to use
-        $app->make('router')
-            ->any('{any?}', fn () => response()->json(['message' => "wordpress_request_$time" ]))
-            ->where('any', '.*');
 
         add_action('parse_request', function () use ($time, $kernel, $request) {
             /** @var \Illuminate\Http\Response|\Symfony\Component\HttpFoundation\BinaryFileResponse */
