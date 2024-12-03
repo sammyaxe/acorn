@@ -265,10 +265,17 @@ class Bootloader
     {
         $this->app ??= new Application($this->basePath(), $this->usePaths());
 
-        $this->app->singleton(
-            \Illuminate\Contracts\Http\Kernel::class,
-            \Roots\Acorn\Http\Kernel::class
-        );
+        if (class_exists(\App\Http\Kernel::class)) {
+            $this->app->singleton(
+                \Illuminate\Contracts\Http\Kernel::class,
+                \App\Http\Kernel::class
+            );
+        } else {
+            $this->app->singleton(
+                \Illuminate\Contracts\Http\Kernel::class,
+                \Roots\Acorn\Http\Kernel::class
+            );
+        }
 
         $this->app->singleton(
             \Illuminate\Contracts\Console\Kernel::class,
